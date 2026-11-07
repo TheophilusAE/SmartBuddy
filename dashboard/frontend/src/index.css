@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --c-page: 244 247 252;
+  --c-sidebar: 255 255 255;
+  --c-surface: 255 255 255;
+  --c-raised: 241 245 251;
+  --c-line: 226 232 240;
+  --c-ink: 23 32 51;
+  --c-ink-2: 71 85 105;
+  --c-muted: 100 116 139;
+  --c-accent: 63 110 232;
+  --c-accent-ink: 255 255 255;
+  --c-good: 22 163 74;
+  --c-good-ink: 21 128 61;
+  --c-warn: 245 158 11;
+  --c-warn-ink: 161 98 7;
+  --c-danger: 220 38 38;
+  --c-danger-ink: 185 28 28;
+
+  --c-temp: 234 88 72;
+  --c-hum: 59 130 246;
+  --c-lux: 217 150 0;
+  --c-motion: 139 92 246;
+  --c-gas: 22 163 74;
+  --c-rain: 8 145 178;
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 20px rgba(16, 24, 40, 0.05);
+
+  --chart-grid: #e8edf5;
+  --chart-axis: #cbd5e1;
+  --chart-label: #64748b;
+  --chart-temp: #ea5848;
+  --chart-hum: #3b82f6;
+  --chart-lux: #d99600;
+  --chart-gas: #16a34a;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-page: 11 16 32;
+  --c-sidebar: 16 23 42;
+  --c-surface: 23 31 51;
+  --c-raised: 29 41 64;
+  --c-line: 38 50 76;
+  --c-ink: 248 250 252;
+  --c-ink-2: 186 198 216;
+  --c-muted: 148 163 184;
+  --c-accent: 79 125 243;
+  --c-accent-ink: 255 255 255;
+  --c-good: 34 197 94;
+  --c-good-ink: 74 222 128;
+  --c-warn: 245 158 11;
+  --c-warn-ink: 251 191 36;
+  --c-danger: 239 68 68;
+  --c-danger-ink: 248 113 113;
+
+  --c-temp: 248 113 96;
+  --c-hum: 96 165 250;
+  --c-lux: 250 204 21;
+  --c-motion: 167 139 250;
+  --c-gas: 74 222 128;
+  --c-rain: 34 211 238;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25);
+
+  --chart-grid: #222d45;
+  --chart-axis: #33405e;
+  --chart-label: #94a3b8;
+  --chart-temp: #f87160;
+  --chart-hum: #60a5fa;
+  --chart-lux: #facc15;
+  --chart-gas: #4ade80;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-page font-sans text-ink antialiased;
+  font-size: 15px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--c-accent));
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.skeleton {
+  @apply rounded-lg bg-raised;
+  animation: sb-pulse 1.4s ease-in-out infinite;
+}
+@keyframes sb-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

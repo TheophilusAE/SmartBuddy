@@ -1,0 +1,67 @@
+# Docs and tests stay local, not in the repo
+docs/
+dashboard/tests/
+render.yaml
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+# Firmware Wi-Fi password + device key (copy secrets.example.h)
+secrets.h
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+dashboard/frontend/dist/
+dashboard/frontend/.vite/
+*.tsbuildinfo
+npm-debug.log*
+
+# Runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+dashboard/data/raw/*
+!dashboard/data/raw/README.md
+!dashboard/data/raw/.gitkeep
+dashboard/data/processed/*
+!dashboard/data/processed/README.md
+!dashboard/data/processed/.gitkeep
+dashboard/data/backups/
+
+# Model artifacts are regenerated locally from your own data
+dashboard/ml/models/*
+!dashboard/ml/models/README.md
+!dashboard/ml/models/.gitkeep
+
+# Logs and temp files
+*.log
+logs/
+tmp/
+*.tmp
+
+# Arduino build output
+iot/firmware/smartbuddy_esp32/build/
+
+# Editors / OS
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
