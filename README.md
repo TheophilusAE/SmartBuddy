@@ -9,6 +9,85 @@ comfortable the room feels (1–5), and a small ML model learns to estimate that
 > The MQ-2 is an uncalibrated hobby sensor. SmartBuddy's gas indication is experimental and **not** a certified
 > smoke, fire or gas detector.
 
+## Running the dashboard (for the lecturer)
+
+There are two ways to look at the dashboard. Option A needs no installation. Option B runs everything on your own
+Windows laptop with simulated sensor data, so no ESP32 and no cloud account are needed.
+
+### Option A: open the hosted dashboard
+
+1. Open **<RENDER_URL>** in a browser.
+2. Log in with the account given in the submission.
+3. The server is on Render's free plan and sleeps when nobody uses it, so the first page load can take about a
+   minute. It shows the real readings from the ESP32 and the trained models (ML evaluation page).
+
+### Option B: run it locally with simulated data (about 10 minutes)
+
+You need **Python 3.11 or newer** and **Node.js 20 or newer**. All commands are for PowerShell, starting from the
+project folder (the one that contains this README).
+
+**1. Install the backend**
+
+```powershell
+cd dashboard
+python -m venv .venv
+.\.venv\Scripts\pip install -r requirements.txt
+copy .env.example .env
+```
+
+**2. Create the admin login**
+
+```powershell
+.\.venv\Scripts\python ..\scripts\hash_password.py
+```
+
+Type a password (at least 10 characters) twice. The script prints a line that starts with `ADMIN_PASSWORD_HASH=`.
+Open `dashboard\.env` in a text editor and replace the empty `ADMIN_PASSWORD_HASH=` line with it. The user name is
+`admin`.
+
+**3. Allow the simulator**
+
+```powershell
+.\.venv\Scripts\python ..\scripts\gen_device_key.py sim-01 --simulator
+```
+
+The script prints a **device key** (keep it for step 6) and a line that starts with `SIMULATOR_KEYS=`. In
+`dashboard\.env`, replace the empty `SIMULATOR_KEYS=` line with it and change `ALLOW_SIMULATOR=false` to
+`ALLOW_SIMULATOR=true`. Save the file.
+
+**4. Build the web page (once)**
+
+```powershell
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+**5. Start the dashboard**
+
+```powershell
+.\.venv\Scripts\python -m backend.main
+```
+
+Open **http://127.0.0.1:8000** and log in as `admin` with the password from step 2. Leave this window open.
+
+**6. Send simulated readings** (in a second PowerShell window, from the project folder)
+
+```powershell
+cd dashboard
+.\.venv\Scripts\python ..\scripts\simulate_device.py --device-id sim-01 --key <device key from step 3> --interval 2
+```
+
+Readings now appear live on the Overview, Devices and History pages. They are marked "Simulated data" and are not
+counted as real readings. Press `Ctrl+C` in each window to stop.
+
+Good to know:
+- The local copy starts with an empty database (`dashboard\data\smartbuddy.db`). Simulated readings are never used
+  to train the ML models, so the ML evaluation page will say there is not enough data. The trained models and the
+  AI fan control can be seen in Option A.
+- If port 8000 is already in use, change `PORT=8000` in `dashboard\.env` and open that port instead.
+
 ## Academic objectives
 
 1. Continuous acquisition of **≥ 1,000 valid, timestamped real sensor records** (tracked live in the dashboard and
@@ -137,17 +216,29 @@ model and it survives Render restarts. The laptop backend also keeps a copy in `
 
 A separate model predicts temperature and humidity a few minutes ahead from the real sensor readings alone
 (no ratings needed). Train it with **Train forecast** on the ML evaluation page, or
-`python -m ml.forecast --horizon 5 --publish`. It is evaluated on the later 30 % of the recordings against a
-"no change" baseline and only deployed if it beats it. Each training sample needs (5 + horizon) minutes of
+`python -m ml.forecast --horizon 5 --publish`. It only uses short-term changes (temperature/humidity change over
+1 and 5 min, fan state, motion), because absolute levels differ from day to day. It is evaluated on the later 30 % of
+the recordings against a "no change" baseline and only deployed if it beats it. Each training sample needs (5 + horizon) minutes of
 continuous recording, so longer horizons need the device to run for longer stretches. The forecast is shown on
 Overview and is stored in `ml_models` with `kind = 'forecast'`, separate from the comfort model.
+
+### AI fan control
+
+With `ENABLE_ML_AUTOMATIC=true` and a deployed forecast, an admin can press **Let the AI control the fan** on the ML
+evaluation page (mode `ML_AUTOMATIC`, allowed in monitor-only). The server then answers each reading with
+`fan_ai` = on/off from the forecast (on when 26.1 °C is predicted, off when ≤ 25.5 °C is predicted, never off while
+it is already ≥ 26.1 °C). Firmware 1.6.0 follows it while the answers keep coming and falls back to its own rule
+after 30 s without one. Every forecast is logged in `forecast_log`; the page shows predicted vs measured temperature
+and who switched the fan. `python scripts/compare_ai_rule.py` compares AI and rule decisions on the real data
+(leave-one-day-out replay, plus live AI/rule periods).
 
 ## Operating modes and safety
 
 `MANUAL`, `RULE_BASED`, `ML_RECOMMENDATION` (default, never switches anything) and `ML_AUTOMATIC` (off unless
-explicitly enabled and a validated model exists). Gas handling runs on the device and in `backend/safety.py`,
+explicitly enabled and a validated forecast exists; then the fan follows the forecast, see above). Gas handling runs on the device and in `backend/safety.py`,
 independent of ML. A gas warning never starts the fan automatically; starting it by hand during a warning
-needs explicit confirmation. The emergency stop switches everything off. If the device loses the backend
+needs explicit confirmation. An admin can silence the buzzer for the current alarm (max 5 min) from the Overview
+banner or the Devices page; the alarm stays active and the next alarm beeps again. The emergency stop switches everything off. If the device loses the backend
 for 30 s, it switches fan and LED off itself.
 
 ## Testing and security

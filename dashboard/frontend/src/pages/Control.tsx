@@ -6,6 +6,7 @@ import { useLive, usePrimaryDevice } from '../live'
 import { ageSeconds, localTime, MODE_LABELS, num, relative } from '../format'
 import { Badge, Button, Card, cx, EmptyState, ErrorNote, IconBubble, PageHeader, SectionTitle, type Hue } from '../components/ui'
 import { rainView, StateChip, WindowGraphic, windowView } from '../components/RainWindow'
+import SilenceBuzzer from '../components/SilenceBuzzer'
 import type { CommandEvent, DeviceState, Mode, RainStatus, Reading, SensorState } from '../types'
 
 type Switchable = 'fan' | 'light' | 'buzzer'
@@ -329,7 +330,7 @@ function ControlPanel() {
 const FIRMWARE_RULES: { key: Switchable; label: string; icon: ReactNode; rule: string }[] = [
   { key: 'fan', label: 'Fan', icon: <Fan className="h-5 w-5" aria-hidden />, rule: 'On above 26 °C, off again at 25.5 °C. Holds its state if the DHT22 reading is unavailable.' },
   { key: 'light', label: 'LED', icon: <Lightbulb className="h-5 w-5" aria-hidden />, rule: 'On when the light level is ≤ 30 %, off at ≥ 40 %.' },
-  { key: 'buzzer', label: 'Buzzer', icon: <Volume2 className="h-5 w-5" aria-hidden />, rule: 'Beeps while the MQ-2 alarm is active: filtered ADC > 1800 for 3 s after warm-up, clears below 1700.' },
+  { key: 'buzzer', label: 'Buzzer', icon: <Volume2 className="h-5 w-5" aria-hidden />, rule: 'Beeps while the MQ-2 alarm is active: filtered ADC > 420 for 3 s after warm-up, clears below 320.' },
 ]
 
 function MonitorOutputs({ device, gasActive, reading }: { device: DeviceState; gasActive: boolean; reading: Reading | null }) {
@@ -353,7 +354,14 @@ function MonitorOutputs({ device, gasActive, reading }: { device: DeviceState; g
                   {on === null ? 'Unknown' : on ? 'On' : 'Off'}
                 </span>
               </div>
-              <p className="mt-4 rounded-xl bg-raised/60 px-3 py-2 text-sm text-ink-2">{a.rule}</p>
+              <p className="mt-4 rounded-xl bg-raised/60 px-3 py-2 text-sm text-ink-2">
+                {a.key === 'fan' && reading?.fan_control === 'ai'
+                  ? 'Following the AI forecast from the server: on when 26.1 °C is predicted, off when ≤ 25.5 °C is predicted. Falls back to the rule below after 30 s without an answer.'
+                  : a.rule}
+              </p>
+              {a.key === 'buzzer' && (
+                <SilenceBuzzer deviceId={device.device_id} alarmActive={reading?.gas_warning_local ?? false} />
+              )}
             </div>
           )
         })}
@@ -379,8 +387,9 @@ function MonitorOutputs({ device, gasActive, reading }: { device: DeviceState; g
         </div>
       </div>
       <p className="mt-3 text-sm text-muted">
-        Monitor-only: this firmware switches its outputs by itself and can't receive commands. To change a rule, edit the
-        thresholds at the top of <code>New_Code.ino</code> and upload it again.
+        Monitor-only: this firmware switches its outputs by itself and takes no manual commands. The only exception is the
+        fan in AI mode (ML evaluation page), where it follows the server's forecast. To change a rule, edit the thresholds
+        at the top of <code>New_Code.ino</code> and upload it again.
       </p>
       {gasActive && (
         <p className="mt-2 flex items-start gap-1.5 text-sm text-danger-ink">

@@ -67,7 +67,8 @@ async def post_reading(request: Request, ctx: AppContext = Depends(get_ctx)):
     if result.status == "duplicate":
         return JSONResponse({"status": "duplicate", "server_time_ms": server_time}, status_code=200)
     return JSONResponse(
-        {"status": "stored", "reading_id": result.reading_id, "valid": result.valid, "server_time_ms": server_time},
+        {"status": "stored", "reading_id": result.reading_id, "valid": result.valid, "server_time_ms": server_time,
+         "fan_ai": result.fan_ai, "buzzer_mute_s": result.buzzer_mute_s},
         status_code=201,
     )
 

@@ -39,15 +39,18 @@ def get_mode(ctx: AppContext = Depends(get_ctx), _: SessionUser = Depends(curren
         "ml_automatic_enabled": ctx.settings.enable_ml_automatic,
         "device_control_enabled": ctx.settings.device_control_enabled,
         "model_available": ctx.ml.model_available,
+        "forecast_available": ctx.ml.get_forecast_model() is not None,
     }
 
 
 @router.put("/mode")
 def put_mode(body: ModeIn, ctx: AppContext = Depends(get_ctx), user: SessionUser = Depends(admin_user)):
-    if not ctx.settings.device_control_enabled:
-        raise HTTPException(status_code=409, detail="Monitor-only: the firmware's own rules control the outputs")
     mode = OperatingMode(body.mode)
-    problem = mode_allowed(mode, ctx.settings, ctx.ml.model_available)
+    # monitor-only still allows the ML modes: ML_AUTOMATIC only steers the fan via the forecast lease
+    if not ctx.settings.device_control_enabled and mode not in (OperatingMode.ML_RECOMMENDATION,
+                                                                OperatingMode.ML_AUTOMATIC):
+        raise HTTPException(status_code=409, detail="Monitor-only: the firmware's own rules control the outputs")
+    problem = mode_allowed(mode, ctx.settings, ctx.ml.get_forecast_model() is not None)
     if problem:
         raise HTTPException(status_code=409, detail=problem)
     with ctx.db.transaction() as conn:

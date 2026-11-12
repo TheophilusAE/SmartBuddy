@@ -1,9 +1,14 @@
 # SmartBuddy firmware (ESP32, Arduino IDE)
 
-The firmware in use is **`firmware/smartbuddy_esp32/New_Code/New_Code.ino`** (v1.3.0).
+The firmware in use is **`firmware/smartbuddy_esp32/New_Code/New_Code.ino`** (v1.6.0).
 
 - Sensors: DHT22 (temperature/humidity), LDR (light level %), HC-SR501 PIR, MQ-2 gas/smoke indication, optional SSD1306 OLED.
 - Its own rules switch the fan, LED and buzzer (below). The dashboard can't switch them.
+- AI fan (v1.6.0): when the server's reply to a reading carries `"fan_ai":"on"/"off"` (mode ML_AUTOMATIC), the fan
+  follows it instead of the 26.1/25.5 °C rule. No reply with a decision for 30 s (`AI_FAN_LEASE_MS`) -> back to the
+  rule. A local gas alarm still blocks starting the fan. Each reading reports `fan_control` = `rule` or `ai`.
+- Buzzer silence (v1.6.0): `"buzzer_mute_s":N` in the reply silences the buzzer for the current alarm (max 10 min).
+  The alarm stays active; a new alarm always beeps.
 - Every 2 s it sends a reading to the dashboard backend over **Wi-Fi + HTTP POST**. The rules keep running
   when there's no Wi-Fi.
 - It still prints the same data on USB serial, so `scripts/serial_bridge.py` works as a fallback.

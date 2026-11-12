@@ -138,6 +138,9 @@ npm audit
 | GET | `/api/v1/ml/status`, `/ml/evaluation`, `/ml/advice` | signed in |
 | POST | `/api/v1/ml/train` | admin + CSRF |
 | GET | `/api/v1/ml/forecast` | signed in |
+| GET | `/api/v1/ml/forecast/history?hours=6` | signed in |
+| POST | `/api/v1/devices/buzzer/silence`, `/devices/buzzer/unmute` | admin + CSRF |
+| GET | `/api/v1/devices/buzzer/silence?device_id=` | signed in |
 | POST | `/api/v1/ml/forecast/train?horizon=5` | admin + CSRF |
 | POST/GET | `/api/v1/device/readings`, `/device/commands`, `/device/acks` | device key |
 | WS | `/ws/live` | signed in, allowed Origin |

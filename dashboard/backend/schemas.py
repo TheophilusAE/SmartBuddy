@@ -70,6 +70,8 @@ class ReadingIn(Strict):
     window_state: Optional[WindowState] = None
     servo_angle: Optional[ServoAngle] = None
     window_auto: Optional[bool] = None
+    # who switched the fan: the firmware rule or the server's forecast (ai)
+    fan_control: Optional[Literal["rule", "ai"]] = None
 
     @field_validator("timestamp")
     @classmethod

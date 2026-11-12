@@ -6,6 +6,7 @@ import { useAuth } from '../auth'
 import { useLive } from '../live'
 import { localTime, num } from '../format'
 import { Badge, Button, Card, cx, ErrorNote, IconBubble, PageHeader, ProgressRing, Skeleton, Stat } from '../components/ui'
+import AiFanControl from '../components/AiFanControl'
 import ForecastEvaluation from '../components/ForecastEvaluation'
 import type { Advice, ForecastResult, MlStatus, TrainingResult } from '../types'
 
@@ -384,6 +385,10 @@ export default function Evaluation() {
         isAdmin={isAdmin}
         onTrained={() => void load()}
       />
+
+      <div className="mt-6">
+        <AiFanControl isAdmin={isAdmin} />
+      </div>
     </>
   )
 }

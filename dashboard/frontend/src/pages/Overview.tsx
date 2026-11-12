@@ -9,6 +9,7 @@ import Sparkline from '../components/Sparkline'
 import RainWindowCard from '../components/RainWindow'
 import QuickRate from '../components/QuickRate'
 import ForecastCard from '../components/ForecastCard'
+import SilenceBuzzer from '../components/SilenceBuzzer'
 import { freshnessOf } from '../components/status'
 import { Card, cx, EmptyState, IconBubble, Segmented, Skeleton, StatusDot, type Hue } from '../components/ui'
 import type { Advice, Reading, SensorState } from '../types'
@@ -252,6 +253,7 @@ export default function Overview() {
               and let fresh air in if it's safe.
             </p>
             <p className="mt-1 text-sm text-muted">Hobby sensor, not a certified gas detector · updated {relative(ageSeconds(reading.received_at, now))}</p>
+            <SilenceBuzzer deviceId={reading.device_id} alarmActive={reading.gas_warning_local} />
           </div>
         </section>
       )}

@@ -12,7 +12,7 @@ READING_COLUMNS = (
     "id, device_id, boot_id, sequence, measured_at, measured_ms, device_timestamp, received_at, "
     "timestamp_trusted, uptime_ms, temperature_c, humidity_pct, light_pct, ldr_raw, motion_detected, gas_adc, "
     "gas_warning_local, dht_status, ldr_status, pir_status, mq2_status, fan_on, light_on, buzzer_on, "
-    "valid, out_of_order, is_simulated, rain_raw, rain_filtered, rain_status, window_state, servo_angle, window_auto"
+    "valid, out_of_order, is_simulated, rain_raw, rain_filtered, rain_status, window_state, servo_angle, window_auto, fan_control"
 )
 
 
@@ -22,6 +22,8 @@ class StoreResult:
     reading_id: Optional[int] = None
     valid: bool = False
     row: Optional[dict[str, Any]] = None
+    fan_ai: Optional[str] = None
+    buzzer_mute_s: int = 0
 
 
 def _opt_bool(v: Any) -> Optional[bool]:
@@ -63,6 +65,7 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "window_state": row["window_state"],
         "servo_angle": row["servo_angle"],
         "window_auto": _opt_bool(row["window_auto"]),
+        "fan_control": row["fan_control"],
     }
 
 
@@ -96,8 +99,8 @@ def store_reading(
         "received_at, timestamp_trusted, uptime_ms, temperature_c, humidity_pct, light_pct, ldr_raw, motion_detected, "
         "gas_adc, gas_warning_local, dht_status, ldr_status, pir_status, mq2_status, fan_on, light_on, "
         "buzzer_on, valid, out_of_order, is_simulated, rain_raw, rain_filtered, rain_status, window_state, "
-        "servo_angle, window_auto) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "servo_angle, window_auto, fan_control) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         f"ON CONFLICT (device_id, boot_id, sequence) DO NOTHING RETURNING {READING_COLUMNS}",
         (
             reading.device_id, reading.boot_id, reading.sequence, to_iso(measured), to_epoch_ms(measured),
@@ -110,6 +113,7 @@ def store_reading(
             int(valid), int(out_of_order), int(simulated),
             reading.rain_raw, reading.rain_filtered, reading.rain_status, reading.window_state,
             reading.servo_angle, None if reading.window_auto is None else int(reading.window_auto),
+            reading.fan_control,
         ),
     )
     row = cur.fetchone()

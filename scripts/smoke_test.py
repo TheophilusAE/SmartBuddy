@@ -137,7 +137,9 @@ def main() -> int:
         c = Client(base)
 
         code, headers, body = c.call("GET", "/api/v1/health")
-        check("health returns 200 with no internals", code == 200 and jbody(body) == {"status": "ok"})
+        hb = jbody(body)
+        check("health returns 200 with no internals",
+              code == 200 and hb.get("status") == "ok" and set(hb) <= {"status", "server_time_ms"})
         h = {k.lower(): v for k, v in headers.items()}
         check("security headers present", all(k in h for k in (
             "content-security-policy", "x-content-type-options", "x-frame-options", "referrer-policy")))

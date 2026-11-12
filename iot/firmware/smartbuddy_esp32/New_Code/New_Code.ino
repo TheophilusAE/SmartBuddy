@@ -47,7 +47,7 @@
 #define OLED_RESET_PIN     -1
 #define OLED_I2C_ADDRESS   0x3C
 
-#define FIRMWARE_VERSION "1.5.0-wifi-https-rain"
+#define FIRMWARE_VERSION "1.6.0-wifi-https-rain-aifan"
 
 enum SerialOutputMode : uint8_t {
   SERIAL_HUMAN_READABLE = 0,
@@ -87,6 +87,8 @@ constexpr uint16_t      NET_HTTP_TIMEOUT_MS  = BACKEND_HTTPS ? 8000 : 3000;
 constexpr unsigned long NET_RETRY_MS         = 5000;
 constexpr unsigned long NET_WIFI_REJOIN_MS   = 30000;
 constexpr uint8_t       NET_QUEUE_LEN        = 60;
+constexpr unsigned long AI_FAN_LEASE_MS      = 30000;  // no fresh server decision for this long -> local rule
+constexpr unsigned long BUZZER_MUTE_MAX_MS   = 600000; // a silence from the dashboard never lasts longer
 
 constexpr unsigned long PIR_WARMUP_MS = 60000;
 constexpr unsigned long MQ2_WARMUP_MS = 120000;
@@ -285,7 +287,9 @@ struct NetReading {
   bool     motion;
   int16_t  gasAdc;
   bool     gasWarning;
+  bool     buzzerOn;
   bool     fanOn;
+  bool     fanAi;
   bool     ledOn;
   uint8_t  dht, ldr, pir, mq2;
   bool     rainHasRaw;
@@ -323,10 +327,22 @@ struct ActuatorData {
   bool          alarmActive    = false;
   bool          buzzerOutputOn = false;
   unsigned long alarmStartMs   = 0;
+  bool          fanByAi        = false;
   char          fanReason[64]  = "Startup default: OFF";
   char          ledReason[64]  = "Startup default: OFF";
 };
 ActuatorData act;
+
+// fan decision from the server's forecast, written by netTask (core 0), read by loop (core 1)
+volatile int8_t       aiFanCmd  = -1;   // -1 none, 0 off, 1 on
+volatile unsigned long aiFanAtMs = 0;
+// dashboard silence for the current gas alarm, 0 = not muted (written by netTask)
+volatile unsigned long buzzerMuteUntilMs = 0;
+
+bool buzzerMuted() {
+  unsigned long u = buzzerMuteUntilMs;
+  return u != 0 && (long)(u - millis()) > 0;
+}
 
 struct OledData {
   bool          ok             = false;
@@ -845,6 +861,22 @@ void handleFanAutomation() {
     return;
   }
   float t = dhtData.temperatureC;
+
+  int8_t cmd = aiFanCmd;
+  unsigned long at = aiFanAtMs;
+  act.fanByAi = cmd >= 0 && millis() - at < AI_FAN_LEASE_MS;
+  if (act.fanByAi) {
+    bool on = cmd == 1;
+    // same safety as the rule: a gas alarm never starts the fan
+    if (on && !act.fanOn && act.alarmActive) {
+      snprintf(act.fanReason, sizeof(act.fanReason), "AI HOLD OFF: gas alarm active");
+      return;
+    }
+    snprintf(act.fanReason, sizeof(act.fanReason), "AI %s: server forecast (now %.1f C)", onOff(on), t);
+    setFan(on);
+    return;
+  }
+
   if (t >= FAN_ON_TEMP_C) {
     snprintf(act.fanReason, sizeof(act.fanReason), "ON: %.1f C >= %.1f C", t, FAN_ON_TEMP_C);
     setFan(true);
@@ -891,6 +923,7 @@ void handleMQ2Alarm() {
       if (now - mq2Data.aboveSinceMs >= MQ2_ALARM_CONFIRM_MS) {
         act.alarmActive = true;
         act.alarmStartMs = now;
+        buzzerMuteUntilMs = 0;   // a new alarm always beeps
         diag("ALERT", "MQ-2 THRESHOLD ALERT: filtered ADC %d > %d for %lu ms. "
                       "Relative sensor alert, NOT confirmed gas leakage. Check the area manually.",
              mq2Data.filtered, MQ2_ALARM_THRESHOLD, MQ2_ALARM_CONFIRM_MS);
@@ -906,6 +939,7 @@ void handleMQ2Alarm() {
     if (belowClear && minOnDone) {
       act.alarmActive = false;
       mq2Data.aboveActive = false;
+      buzzerMuteUntilMs = 0;
       diag("INFO", "MQ-2 threshold alert cleared: filtered ADC %d < %d.", mq2Data.filtered, clearLevel);
     }
   }
@@ -917,7 +951,8 @@ void handleMQ2Alarm() {
 }
 
 void updateBuzzer() {
-  if (!act.alarmActive) {
+  // muted: alarm stays active (OLED, dashboard), only the sound stops
+  if (!act.alarmActive || buzzerMuted()) {
     if (act.buzzerOutputOn) setBuzzerOutput(false);
     return;
   }
@@ -1750,7 +1785,9 @@ void queueReading() {
   r.motion       = pirData.motion;
   r.gasAdc       = (int16_t)mq2Data.filtered;
   r.gasWarning   = act.alarmActive;
+  r.buzzerOn     = act.alarmActive && !buzzerMuted();
   r.fanOn        = act.fanOn;
+  r.fanAi        = act.fanByAi;
   r.ledOn        = act.ledOn;
   r.rainHasRaw      = rainData.hasSample;
   r.rainHasFiltered = rainData.count > 0;
@@ -1814,12 +1851,13 @@ int buildReadingJson(const NetReading& r, char* out, size_t len) {
     "\"sensor_status\":{\"dht\":\"%s\",\"ldr\":\"%s\",\"pir\":\"%s\",\"mq2\":\"%s\"},"
     "\"actuators\":{\"fan\":%s,\"light\":%s,\"buzzer\":%s},"
     "\"rain_raw\":%s,\"rain_filtered\":%s,\"rain_status\":\"%s\",\"window_state\":\"%s\","
-    "\"servo_angle\":%s,\"window_auto\":%s,\"source\":\"device\"}",
+    "\"servo_angle\":%s,\"window_auto\":%s,\"fan_control\":\"%s\",\"source\":\"device\"}",
     DEVICE_ID, netBootId, (unsigned long)r.sequence, ts, (unsigned long)r.uptimeMs,
     temp, hum, light, ldr, motion, gas, r.gasWarning ? "true" : "false",
     STATUS[r.dht], STATUS[r.ldr], STATUS[r.pir], STATUS[r.mq2],
-    r.fanOn ? "true" : "false", r.ledOn ? "true" : "false", r.gasWarning ? "true" : "false",
-    rainRaw, rainAvg, RAIN[r.rainStatus], WINDOW[r.windowState], angle, WINDOW_AUTO_ENABLED ? "true" : "false");
+    r.fanOn ? "true" : "false", r.ledOn ? "true" : "false", r.buzzerOn ? "true" : "false",
+    rainRaw, rainAvg, RAIN[r.rainStatus], WINDOW[r.windowState], angle, WINDOW_AUTO_ENABLED ? "true" : "false",
+    r.fanAi ? "ai" : "rule");
 }
 
 void netReadServerTime(const String& body) {
@@ -1829,6 +1867,30 @@ void netReadServerTime(const String& body) {
   if (serverMs < 1600000000000LL) return;
   netClockOffsetMs = serverMs - (int64_t)millis();
   net.clockSynced = true;
+}
+
+// "fan_ai":"on"|"off"|null in the reply to a reading
+void netReadFanAi(const String& body) {
+  int i = body.indexOf("\"fan_ai\":");
+  if (i < 0) return;
+  const char* v = body.c_str() + i + 9;
+  aiFanCmd  = strncmp(v, "\"on\"", 4) == 0 ? 1 : strncmp(v, "\"off\"", 5) == 0 ? 0 : -1;
+  aiFanAtMs = millis();
+}
+
+// "buzzer_mute_s":N in the reply = seconds the dashboard silence has left
+void netReadBuzzerMute(const String& body) {
+  int i = body.indexOf("\"buzzer_mute_s\":");
+  if (i < 0) return;
+  long s = strtol(body.c_str() + i + 16, nullptr, 10);
+  // a late reply about an alarm that already ended must not mute the next one
+  if (s <= 0 || !act.alarmActive) {
+    buzzerMuteUntilMs = 0;
+    return;
+  }
+  unsigned long ms = min((unsigned long)s * 1000UL, BUZZER_MUTE_MAX_MS);
+  if (buzzerMuteUntilMs == 0) netLog("Buzzer silenced from the dashboard for %lu s (alarm still active)", ms / 1000);
+  buzzerMuteUntilMs = (millis() + ms) | 1;   // never 0, that means not muted
 }
 
 int netRequest(const char* path, const char* body) {
@@ -1859,7 +1921,12 @@ int netRequest(const char* path, const char* body) {
   } else {
     code = http.GET();
   }
-  if (code > 0) netReadServerTime(http.getString());
+  if (code > 0) {
+    String reply = http.getString();
+    netReadServerTime(reply);
+    netReadFanAi(reply);
+    netReadBuzzerMute(reply);
+  }
   http.end();
   return code;
 }

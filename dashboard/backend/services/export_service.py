@@ -10,7 +10,7 @@ EXPORT_FIELDS = [
     "temperature_c", "humidity_pct", "light_pct", "ldr_raw", "motion_detected", "gas_adc", "gas_warning_local",
     "dht_status", "ldr_status", "pir_status", "mq2_status", "fan_on", "light_on", "buzzer_on",
     "valid", "out_of_order", "is_simulated",
-    "rain_raw", "rain_filtered", "rain_status", "window_state", "servo_angle", "window_auto",
+    "rain_raw", "rain_filtered", "rain_status", "window_state", "servo_angle", "window_auto", "fan_control",
 ]
 
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")

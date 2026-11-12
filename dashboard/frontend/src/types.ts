@@ -37,6 +37,7 @@ export interface Reading {
   window_state: WindowState | null
   servo_angle: number | null
   window_auto: boolean | null
+  fan_control?: 'rule' | 'ai' | null
 }
 
 export interface CommandEvent {
@@ -143,6 +144,7 @@ export interface Forecast {
   reason?: string
   model_version?: string
   horizon_min?: number
+  uncertainty_c?: number | null
   based_on?: string
   now?: { temperature_c: number; humidity_pct: number }
   forecast?: { temperature_c: number | null; humidity_pct: number | null }
@@ -214,4 +216,38 @@ export interface FeedbackItem {
   motion_detected: boolean | null
   context_simulated: boolean
   note: string | null
+}
+
+export interface ModeInfo {
+  mode: Mode
+  ml_automatic_enabled: boolean
+  device_control_enabled: boolean
+  model_available: boolean
+  forecast_available: boolean
+}
+
+export interface ForecastPoint {
+  made_at: string
+  target_at: string
+  now: number
+  predicted: number | null
+  actual: number | null
+  decision: 'on' | 'off' | null
+  mode: Mode
+  model_version: string
+}
+
+export interface FanSample {
+  at: string
+  temperature: number
+  on: boolean
+  control: 'rule' | 'ai' | null
+}
+
+export interface ForecastHistory {
+  hours: number
+  horizon_min: number | null
+  points: ForecastPoint[]
+  fan: FanSample[]
+  summary: { scored: number; mae: number; mae_no_change: number } | null
 }

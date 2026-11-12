@@ -9,6 +9,7 @@ from ..context import AppContext
 from ..device_gateway import DeviceIdentity
 from ..safety import check_command
 from ..schemas import OperatingMode, ReadingIn
+from ..timeutil import to_epoch_ms
 from .readings_service import StoreResult, record_rejection, store_reading
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,9 @@ def ingest_reading(ctx: AppContext, reading: ReadingIn, identity: DeviceIdentity
             if ctx.settings.device_control_enabled:
                 _run_automation(ctx, conn, row, mode)
             ctx.ml.maybe_log_prediction(conn, row)
+        result.buzzer_mute_s = ctx.buzzer.remaining_s(conn, identity.device_id, reading.gas_warning_local,
+                                                      to_epoch_ms(received))
+    result.fan_ai = ctx.ai_fan.step(row, mode, ctx.gas.is_active(identity.device_id))
     return result
 
 
@@ -48,16 +52,10 @@ def _publish_device_state(ctx: AppContext, conn, device_id: str, now: datetime) 
 
 
 def _run_automation(ctx: AppContext, conn, row: dict[str, Any], mode: OperatingMode) -> None:
-    suggestions = None
+    # ML_AUTOMATIC drives the fan through the reply to each reading (services/ai_fan.py), not through commands
     if mode == OperatingMode.ML_AUTOMATIC:
-        if not (ctx.settings.enable_ml_automatic and ctx.ml.model_available):
-            return
-        advice = ctx.ml.advise(row)
-        if advice.get("basis") != "model":
-            return
-        suggestions = advice.get("suggested_actions") or {}
-
-    proposals = ctx.automation.evaluate(row, mode, suggestions)
+        return
+    proposals = ctx.automation.evaluate(row, mode)
     gas_active = ctx.gas.is_active(row["device_id"])
     for p in proposals:
         blocked = check_command(p.target, p.state, p.source, gas_active)

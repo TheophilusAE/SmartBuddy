@@ -9,6 +9,8 @@ from .database import Database, PostgresDatabase, get_setting, set_setting, open
 from .safety import GasMonitor
 from .schemas import OperatingMode
 from .security import RateLimiter
+from .services.ai_fan import AiFan
+from .services.buzzer_mute import BuzzerMute
 from .services.ml_service import MlService
 from .timeutil import to_iso, utc_now
 from .ws_hub import LiveHub
@@ -24,6 +26,7 @@ class AppContext:
     gas: GasMonitor
     automation: AutomationEngine
     ml: MlService
+    ai_fan: AiFan
     login_user_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(5, 300))
     login_ip_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(20, 300))
     device_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(240, 60))
@@ -31,17 +34,20 @@ class AppContext:
     command_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(30, 60))
     feedback_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(20, 60))
     train_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(3, 300))
+    buzzer: BuzzerMute = field(default_factory=BuzzerMute)
 
     @classmethod
     def build(cls, settings: Settings) -> "AppContext":
         db = open_database(settings)
+        ml = MlService(settings.models_dir, db)
         return cls(
             settings=settings,
             db=db,
             hub=LiveHub(),
             gas=GasMonitor(settings.gas_warning_adc, settings.gas_clear_adc),
             automation=AutomationEngine(settings),
-            ml=MlService(settings.models_dir, db),
+            ml=ml,
+            ai_fan=AiFan(settings, ml, db),
         )
 
     def get_mode(self, conn: sqlite3.Connection) -> OperatingMode:

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ..context import AppContext
 from ..deps import admin_user, current_user, get_ctx
 from ..security import SessionUser
+from ..services.ai_fan import history
 from ..services.ml_service import TrainingBusy
 from ..services.readings_service import latest_reading
 
@@ -42,6 +43,17 @@ def forecast(
     _: SessionUser = Depends(current_user),
 ):
     return ctx.ml.forecast(device_id)
+
+
+@router.get("/forecast/history")
+def forecast_history(
+    hours: float = Query(6, gt=0, le=24),
+    device_id: Optional[str] = Query(None, pattern=r"^[a-z0-9-]{3,32}$"),
+    ctx: AppContext = Depends(get_ctx),
+    _: SessionUser = Depends(current_user),
+):
+    with ctx.db.session() as conn:
+        return history(conn, hours, device_id)
 
 
 @router.post("/forecast/train")

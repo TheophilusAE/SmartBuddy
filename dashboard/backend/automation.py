@@ -44,7 +44,6 @@ class AutomationEngine:
         self,
         reading: dict[str, Any],
         mode: OperatingMode,
-        ml_suggestions: Optional[dict[str, str]] = None,
     ) -> list[ProposedAction]:
         device_id = reading["device_id"]
         now = time.monotonic()
@@ -52,18 +51,11 @@ class AutomationEngine:
             if reading.get("motion_detected"):
                 self._last_motion[device_id] = now
 
-            if mode in (OperatingMode.MANUAL, OperatingMode.ML_RECOMMENDATION):
+            if mode != OperatingMode.RULE_BASED:
                 return []
 
             actuators = reading.get("actuators") or {}
-            wanted: list[ProposedAction] = []
-
-            if mode == OperatingMode.RULE_BASED:
-                wanted = self._rules(reading, device_id, now)
-            elif mode == OperatingMode.ML_AUTOMATIC and ml_suggestions:
-                for target, state in ml_suggestions.items():
-                    if target in ("fan", "light") and state in ("on", "off"):
-                        wanted.append(ProposedAction(target, state, "ml", "ML suggestion"))
+            wanted = self._rules(reading, device_id, now)
 
             out = []
             for action in wanted:
@@ -105,5 +97,5 @@ def mode_allowed(mode: OperatingMode, settings: Settings, model_available: bool)
         if not settings.enable_ml_automatic:
             return "ML_AUTOMATIC is disabled (set ENABLE_ML_AUTOMATIC=true after validating the model)"
         if not model_available:
-            return "ML_AUTOMATIC needs a trained model that beats the baseline"
+            return "ML_AUTOMATIC needs a trained forecast model that beats the no-change baseline"
     return None

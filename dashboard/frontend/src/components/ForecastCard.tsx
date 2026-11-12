@@ -31,6 +31,7 @@ export default function ForecastCard() {
   const t = fc?.forecast?.temperature_c ?? null
   const h = fc?.forecast?.humidity_pct ?? null
   const nowT = fc?.now?.temperature_c ?? null
+  const aiFan = reading?.fan_control === 'ai'
 
   return (
     <Card title="Room forecast" subtitle={fc?.available ? `ML prediction, ${fc.horizon_min} min ahead` : 'ML prediction'}>
@@ -40,11 +41,14 @@ export default function ForecastCard() {
         <>
           <div className="flex items-baseline gap-2">
             <span className="text-[32px] font-bold leading-none tabular">{num(t)} °C</span>
+            {fc.uncertainty_c != null && <span className="text-sm text-muted tabular">± {num(fc.uncertainty_c, 2)}</span>}
             <Trend now={nowT} next={t} />
             <span className="text-sm text-muted tabular">now {num(nowT)} °C</span>
           </div>
           {h !== null && <p className="mt-1 text-sm text-ink-2 tabular">Humidity {num(h, 0)} %</p>}
-          {t > WARM_C && t > nowT && (
+          {aiFan ? (
+            <p className="mt-3 text-sm text-good-ink">The AI controls the fan from this forecast.</p>
+          ) : t > WARM_C && t > nowT && (
             <p className="mt-3 text-sm text-warn-ink">It's getting warm. Turning the fan on now may help.</p>
           )}
           <p className="mt-3 text-xs text-muted">Learned from your own past readings. Model {fc.model_version}.</p>

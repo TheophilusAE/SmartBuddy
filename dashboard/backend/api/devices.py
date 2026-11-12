@@ -11,7 +11,8 @@ from ..deps import admin_user, current_user, get_ctx
 from ..safety import check_command
 from ..schemas import CommandIn, DeviceOnlyIn, OperatingMode
 from ..security import SessionUser
-from ..timeutil import utc_now
+from ..services.readings_service import latest_reading
+from ..timeutil import from_epoch_ms, to_epoch_ms, to_iso, utc_now
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/devices", tags=["devices"])
@@ -120,3 +121,40 @@ def mute_alarm(body: DeviceOnlyIn, ctx: AppContext = Depends(get_ctx), user: Ses
                                  requested_by=user.username, reason="mute local gas buzzer")
     ctx.hub.publish("command_update", event)
     return event
+
+
+# works in monitor-only too: the reply to the next reading tells the firmware to keep the buzzer quiet
+@router.post("/buzzer/silence")
+def silence_buzzer(body: DeviceOnlyIn, ctx: AppContext = Depends(get_ctx), user: SessionUser = Depends(admin_user)):
+    now = utc_now()
+    with ctx.db.transaction() as conn:
+        if not _known(conn, body.device_id):
+            raise HTTPException(status_code=404, detail="Unknown device")
+        if not gw.is_online(conn, ctx.settings, body.device_id, now):
+            raise HTTPException(status_code=409, detail="Device is offline, it would not get the message")
+        reading = latest_reading(conn, body.device_id)
+        if reading is None or not reading["gas_warning_local"]:
+            raise HTTPException(status_code=409, detail="No gas alarm is active on the device")
+        until = ctx.buzzer.silence(conn, body.device_id, to_epoch_ms(now), user.username)
+    log.warning("buzzer silenced by %s for %s", user.username, body.device_id)
+    return {"device_id": body.device_id, "muted_until": to_iso(from_epoch_ms(until))}
+
+
+@router.post("/buzzer/unmute")
+def unmute_buzzer(body: DeviceOnlyIn, ctx: AppContext = Depends(get_ctx), user: SessionUser = Depends(admin_user)):
+    with ctx.db.transaction() as conn:
+        if not _known(conn, body.device_id):
+            raise HTTPException(status_code=404, detail="Unknown device")
+        ctx.buzzer.cancel(conn, body.device_id, user.username)
+    return {"device_id": body.device_id, "muted_until": None}
+
+
+@router.get("/buzzer/silence")
+def buzzer_state(
+    device_id: str = Query(..., pattern=r"^[a-z0-9-]{3,32}$"),
+    ctx: AppContext = Depends(get_ctx),
+    _: SessionUser = Depends(current_user),
+):
+    with ctx.db.session() as conn:
+        until = ctx.buzzer.until(conn, device_id, to_epoch_ms(utc_now()))
+    return {"device_id": device_id, "muted_until": None if until is None else to_iso(from_epoch_ms(until))}

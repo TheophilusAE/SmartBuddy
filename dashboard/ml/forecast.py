@@ -23,11 +23,13 @@ from .inference import ModelUnavailable
 
 FORECAST_DIR = MODELS_DIR / "forecast"
 STEP_S = 30
-HORIZON_MIN = 10
+HORIZON_MIN = 5
 GAP_S = 60
 HISTORY_MIN = 5
 TARGETS = ["temperature_c", "humidity_pct"]
-FEATURES = ["temperature_c", "humidity_pct", "light_pct", "t_d1", "t_d5", "h_d1", "h_d5", "fan_on", "motion_5"]
+# only short-term changes, fan and motion: absolute levels differ from day to day and made the model
+# worse than "no change" on days it had not seen
+FEATURES = ["t_d1", "t_d5", "h_d1", "h_d5", "fan_on", "motion_5"]
 MIN_TRAIN_ROWS = 100
 MIN_TEST_ROWS = 30
 TEST_SHARE = 0.3
@@ -299,7 +301,7 @@ def latest_features(conn, device_id: Optional[str] = None, now_ms: Optional[int]
     last = feats.iloc[-1]
     if last["segment"] != feats["segment"].max():
         return None
-    out = {f: float(last[f]) for f in FEATURES}
+    out = {f: float(last[f]) for f in [*FEATURES, *TARGETS]}
     out["at"] = feats.index[-1].strftime("%Y-%m-%dT%H:%M:%SZ")
     return out
 

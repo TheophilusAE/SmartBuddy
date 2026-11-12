@@ -166,10 +166,14 @@ class MlService:
             pred = model.predict(feats)
         except ValueError:
             return {"available": False, "reason": "Recent readings are incomplete"}
+        meta = model.metadata
+        best = (meta.get("best_candidate") or {}).get("temperature_c")
+        rmse = ((meta.get("metrics") or {}).get("temperature_c") or {}).get(best, {}).get("rmse")
         return {
             "available": True,
             "model_version": model.version,
-            "horizon_min": model.metadata.get("horizon_min"),
+            "horizon_min": meta.get("horizon_min"),
+            "uncertainty_c": rmse,
             "based_on": feats["at"],
             "now": {"temperature_c": round(feats["temperature_c"], 2), "humidity_pct": round(feats["humidity_pct"], 2)},
             "forecast": pred,
