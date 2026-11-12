@@ -228,5 +228,5 @@ if __name__ == "__main__":
     elif not s.is_loopback_only:
         scope = "device endpoints only" if s.lan_device_only else "ALL endpoints (LAN_DEVICE_ONLY=false)"
         log.warning("listening on %s - other machines on your network can reach the %s. "
-                    "See docs/SECURITY.md (firewall rule).", s.host, scope)
+                    "Allow the port in the firewall for private networks only.", s.host, scope)
     uvicorn.run(app, host=s.host, port=s.port, log_level="info", proxy_headers=False, server_header=False)

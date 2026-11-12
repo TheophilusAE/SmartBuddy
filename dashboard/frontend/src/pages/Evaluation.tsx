@@ -1,11 +1,19 @@
-import { useEffect, useState } from 'react'
-import { BrainCircuit, CheckCircle2, CircleDashed, Copy, Database, Droplets, FlaskConical, History, Sun, Thermometer, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { BrainCircuit, CheckCircle2, CircleDashed, Copy, Database, Droplets, FlaskConical, History, Play, Sun, Thermometer, XCircle } from 'lucide-react'
 import { CartesianGrid, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, type TooltipProps } from 'recharts'
 import { api, errorMessage } from '../api'
+import { useAuth } from '../auth'
 import { useLive } from '../live'
 import { localTime, num } from '../format'
-import { Badge, Card, cx, ErrorNote, IconBubble, PageHeader, ProgressRing, Skeleton, Stat } from '../components/ui'
-import type { Advice, MlStatus, TrainingResult } from '../types'
+import { Badge, Button, Card, cx, ErrorNote, IconBubble, PageHeader, ProgressRing, Skeleton, Stat } from '../components/ui'
+import ForecastEvaluation from '../components/ForecastEvaluation'
+import type { Advice, ForecastResult, MlStatus, TrainingResult } from '../types'
+
+interface EvaluationResponse {
+  deployed: TrainingResult | null
+  last_attempt: TrainingResult | null
+  forecast: { deployed: ForecastResult | null; last_attempt: ForecastResult | null }
+}
 
 
 const MODEL_NAMES: Record<string, string> = {
@@ -16,7 +24,7 @@ const MODEL_NAMES: Record<string, string> = {
 
 const SCALE = ['Very uncomfortable', 'Uncomfortable', 'Neutral', 'Comfortable', 'Very comfortable']
 
-const TRAIN_COMMANDS = 'python -m ml.prepare_dataset --db data/smartbuddy.db\npython -m ml.train_model --plot'
+const TRAIN_COMMANDS = 'python -m ml.prepare_dataset\npython -m ml.train_model --plot --publish'
 
 function MetricsTable({ result }: { result: TrainingResult }) {
   const metrics = result.metrics ?? {}
@@ -111,28 +119,56 @@ export default function Evaluation() {
   const [status, setStatus] = useState<MlStatus | null>(null)
   const [deployed, setDeployed] = useState<TrainingResult | null>(null)
   const [last, setLast] = useState<TrainingResult | null>(null)
+  const [forecast, setForecast] = useState<EvaluationResponse['forecast'] | null>(null)
   const [advice, setAdvice] = useState<Advice | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [training, setTraining] = useState(false)
+  const [trainNote, setTrainNote] = useState<string | null>(null)
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
+  const load = useCallback(async () => {
+    try {
+      const [s, e] = await Promise.all([
+        api<MlStatus>('/ml/status'),
+        api<EvaluationResponse>('/ml/evaluation'),
+      ])
+      setStatus(s)
+      setDeployed(e.deployed)
+      setLast(e.last_attempt)
+      setForecast(e.forecast)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    Promise.all([
-      api<MlStatus>('/ml/status'),
-      api<{ deployed: TrainingResult | null; last_attempt: TrainingResult | null }>('/ml/evaluation'),
-    ])
-      .then(([s, e]) => {
-        setStatus(s)
-        setDeployed(e.deployed)
-        setLast(e.last_attempt)
-      })
-      .catch((err) => setError(errorMessage(err)))
-      .finally(() => setLoading(false))
-  }, [])
+    void load()
+  }, [load])
 
   useEffect(() => {
     api<Advice>('/ml/advice').then(setAdvice).catch(() => setAdvice(null))
   }, [reading?.id])
+
+  const trainNow = async () => {
+    setTraining(true)
+    setTrainNote(null)
+    setError(null)
+    try {
+      const res = await api<TrainingResult>('/ml/train', { method: 'POST' })
+      setTrainNote(res.status === 'deployed' ? `Deployed ${res.model_version} (${MODEL_NAMES[res.algorithm ?? ''] ?? res.algorithm}).` : res.message ?? statusLabel(res.status).text)
+      await load()
+      api<Advice>('/ml/advice').then(setAdvice).catch(() => setAdvice(null))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setTraining(false)
+    }
+  }
 
   const copyCommands = async () => {
     try {
@@ -174,7 +210,7 @@ export default function Evaluation() {
           ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-24" />)
           : [
               { label: 'Deployed model', value: status?.model_version ?? 'None', hint: status?.algorithm ? MODEL_NAMES[status.algorithm] : 'nothing deployed yet', icon: <BrainCircuit className="h-5 w-5" aria-hidden />, hue: 'accent' as const },
-              { label: 'Usable ratings', value: `${usable} / ${needed}`, hint: `from ${status?.min_sessions ?? 2}+ separate days`, icon: <Database className="h-5 w-5" aria-hidden />, hue: 'hum' as const },
+              { label: 'Usable ratings', value: `${usable} / ${needed}`, hint: `${status?.usable_sessions ?? 0} of ${status?.min_sessions ?? 2} separate days`, icon: <Database className="h-5 w-5" aria-hidden />, hue: 'hum' as const },
               { label: 'Last training', value: lastState.text, hint: last ? localTime(last.attempted_at) : 'run the training script', icon: <History className="h-5 w-5" aria-hidden />, hue: 'motion' as const },
               { label: 'Evaluation samples', value: shown?.split?.test_rows ?? '—', hint: shown?.split ? `${shown.split.test_sessions} held-out session(s)` : 'after training', icon: <FlaskConical className="h-5 w-5" aria-hidden />, hue: 'gas' as const },
             ].map((s) => (
@@ -204,7 +240,7 @@ export default function Evaluation() {
             <p className="mt-1 max-w-[17rem] text-sm text-muted">
               {shown && improvement !== null
                 ? 'How much lower the best model\'s average error (MAE) is than always guessing the average rating.'
-                : `Collect at least ${needed} ratings on the Comfort page, then run the training script. No metrics are shown until then.`}
+                : `Collect at least ${needed} ratings (Overview or Comfort page), then press Train now. No metrics are shown until then.`}
             </p>
           </div>
           {shown && best && base && (
@@ -277,9 +313,21 @@ export default function Evaluation() {
               })}
             </ol>
           )}
+          {isAdmin && (
+            <div className="mt-5">
+              <Button variant="primary" className="w-full" busy={training} onClick={() => void trainNow()}>
+                <Play className="h-4 w-4" aria-hidden />
+                Train now
+              </Button>
+              <p className="mt-2 text-xs text-muted">
+                Uses every usable rating in the database. The model is saved there too, so the laptop and Render both use it.
+              </p>
+              {trainNote && <p className="mt-2 text-sm font-medium" role="status">{trainNote}</p>}
+            </div>
+          )}
           <div className="mt-5 rounded-2xl bg-raised/60 p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Train or retrain (in dashboard/)</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Or from the laptop (in dashboard/)</span>
               <button type="button" onClick={() => void copyCommands()} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-ink-2 hover:bg-surface" aria-label="Copy training commands">
                 <Copy className="h-3.5 w-3.5" aria-hidden />
                 {copied ? 'Copied' : 'Copy'}
@@ -329,6 +377,13 @@ export default function Evaluation() {
           </div>
         </>
       )}
+
+      <ForecastEvaluation
+        deployed={forecast?.deployed ?? null}
+        last={forecast?.last_attempt ?? null}
+        isAdmin={isAdmin}
+        onTrained={() => void load()}
+      />
     </>
   )
 }

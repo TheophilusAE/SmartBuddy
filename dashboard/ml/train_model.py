@@ -206,6 +206,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models-dir", type=Path, default=MODELS_DIR)
     parser.add_argument("--with-motion", action="store_true", help="also use the PIR motion flag as a feature")
     parser.add_argument("--plot", action="store_true", help="save an actual-vs-predicted PNG")
+    parser.add_argument("--publish", action="store_true",
+                        help="also save the result in the database from .env (so Render uses the model too)")
     args = parser.parse_args(argv)
 
     if not args.dataset.is_file():
@@ -217,7 +219,32 @@ def main(argv: list[str] | None = None) -> int:
     result = train(df, args.models_dir, args.with_motion, args.dataset.name, args.plot)
     printable = {k: v for k, v in result.items() if k not in {"test_predictions", "limitations"}}
     print(json.dumps(printable, indent=2))
+    if args.publish:
+        try:
+            publish(result, args.models_dir)
+        except Exception as exc:
+            print(f"error: could not save to the database ({type(exc).__name__})", file=sys.stderr)
+            return 1
+        print("saved to the database" + (" and set as the active model" if result["status"] == "deployed" else ""))
     return 0 if result["status"] in {"deployed", "no_improvement", "insufficient_data"} else 1
+
+
+def publish(result: dict[str, Any], models_dir: Path) -> None:
+    from backend.config import load_settings
+    from backend.database import open_database
+
+    from .store import save_attempt, save_model
+
+    settings = load_settings()
+    db = open_database(settings)
+    try:
+        db.init()
+        with db.transaction() as conn:
+            save_attempt(conn, result)
+            if result["status"] == "deployed":
+                save_model(conn, result, models_dir)
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

@@ -53,10 +53,9 @@ To start fresh, stop the backend and delete `data/smartbuddy.db*`.
 
 **Supabase (optional):** set `DATABASE_URL` in `.env` and the backend uses that Postgres database instead. The
 tables are created on startup, and `scripts/move_to_supabase.py` copies the existing SQLite data over once.
-Step by step: [`../docs/SUPABASE.md`](../docs/SUPABASE.md).
 
 **Hosting on Render (optional):** with the data in Supabase, the backend + built dashboard can run on Render's
-free plan so the laptop isn't needed. See [`../docs/RENDER.md`](../docs/RENDER.md).
+free plan so the laptop isn't needed (`render.yaml` in the repo root).
 
 ## 4. Start the backend
 
@@ -108,15 +107,20 @@ npm audit
 
 ```powershell
 .\.venv\Scripts\python -m ml.prepare_dataset                            # -> data/processed/comfort_dataset.csv
-.\.venv\Scripts\python -m ml.train_model --plot                          # -> ml/models/
+.\.venv\Scripts\python -m ml.train_model --plot --publish                # -> ml/models/ + database
 .\.venv\Scripts\python -m ml.evaluate_model --dataset path\to\new_ratings.csv
+.\.venv\Scripts\python -m ml.forecast --horizon 5 --publish                # room forecast -> ml/models/forecast/ + database
 ```
+- Admins can also press **Train now** on the ML evaluation page (`POST /api/v1/ml/train`). It does the same
+  thing on the server, on Render too.
 - Training refuses to run with fewer than 30 ratings or fewer than 2 sessions (user × day). That's the expected
   result until you've collected enough feedback.
 - A model is deployed only if it beats the mean-predicting baseline on held-out sessions.
-- The backend picks up a newly deployed model automatically (it watches `ml/models/current.json`).
+- The deployed model is saved in the `ml_models` table. Every backend checks it every 30 s, writes it to
+  `ml/models/` (local copy) and loads it after the hash check. Without `--publish` the CLI only writes
+  `ml/models/`, and a model in the database wins over it.
 - An external labelled CSV can be imported with `--csv data/raw/file.csv` after you've checked its source and
-  licence. Required columns are in [`../docs/DATA_DICTIONARY.md`](../docs/DATA_DICTIONARY.md).
+  licence. Required columns: `recorded_at, session_id, temperature_c, humidity_pct, light_pct, comfort_rating` (optional `motion_detected`, `source`).
 
 ## API overview
 
@@ -132,6 +136,9 @@ npm audit
 | GET | `/api/v1/warnings` | signed in |
 | GET / POST | `/api/v1/feedback` | signed in (+ CSRF for POST) |
 | GET | `/api/v1/ml/status`, `/ml/evaluation`, `/ml/advice` | signed in |
+| POST | `/api/v1/ml/train` | admin + CSRF |
+| GET | `/api/v1/ml/forecast` | signed in |
+| POST | `/api/v1/ml/forecast/train?horizon=5` | admin + CSRF |
 | POST/GET | `/api/v1/device/readings`, `/device/commands`, `/device/acks` | device key |
 | WS | `/ws/live` | signed in, allowed Origin |
 

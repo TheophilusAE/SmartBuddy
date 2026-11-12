@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED_IGNORES = [
-    ".env", "secrets.h", "docs/", "dashboard/tests/", "*.db", "*.db-wal", "*.db-shm",
+    ".env", "secrets.h", "*.db", "*.db-wal", "*.db-shm",
     "node_modules/", ".venv/", "__pycache__/", "dashboard/ml/models/*", "*.log",
 ]
 SENSITIVE_NAMES = {".env", "secrets.h"}

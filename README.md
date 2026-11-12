@@ -31,7 +31,6 @@ comfortable the room feels (1–5), and a small ML model learns to estimate that
 │   ├── ml/                 dataset prep, training, evaluation, inference
 │   ├── data/               database + datasets (gitignored contents)
 │   └── tests/              pytest: backend, ml, security
-├── docs/                   architecture, wiring, protocol, data dictionary, tests, security
 └── scripts/                key/hash generators, simulator, smoke test, secret check, start scripts
 ```
 
@@ -47,7 +46,6 @@ HTTP, no MQTT broker.
 - The browser uses REST plus a WebSocket for live updates.
 - The dashboard is **monitor-only**: it shows what the firmware switched, but can't switch anything itself.
 
-Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DEVICE_PROTOCOL.md](docs/DEVICE_PROTOCOL.md).
 
 ## Hardware
 
@@ -68,7 +66,6 @@ raindrop sensor module · SG90 servo on a separate regulated 5 V supply.
 | Raindrop sensor AO | 32 |
 | SG90 servo signal | 33 |
 
-Full wiring, power and safety notes: [docs/WIRING.md](docs/WIRING.md).
 
 ### Rain detection & automatic window
 
@@ -118,20 +115,32 @@ No hardware yet? Use the labelled simulator ([dashboard/README.md §6](dashboard
 Leave the ESP32 and the bridge running. The firmware prints a row every 2 s and the bridge forwards each one, so
 1,000 uninterrupted readings take about 33 min 20 s. Expect longer because of unplugged cables, ESP32 restarts
 and DHT22 read failures (a reading is valid only with temperature, humidity and light level). Progress is on the Overview page and in
-`python scripts/collect_status.py`. Export the CSV from History as evidence. The procedure is in
-[docs/TEST_PLAN.md §5](docs/TEST_PLAN.md).
+`python scripts/collect_status.py`. Export the CSV from History as evidence.
 
 1,000 sensor readings ≠ 1,000 training samples: a training sample needs a human comfort rating.
 
 ## ML workflow
 
-1. Rate comfort on the **Comfort** page on several different days, in varied conditions.
-2. `python -m ml.prepare_dataset` (from `dashboard/`; reads the same database as the backend)
-3. `python -m ml.train_model --plot`
-4. View results on the **ML evaluation** page.
+1. Rate comfort with the quick-rate card on **Overview** (or the **Comfort** page) on several different days,
+   in varied conditions (fan on/off, light on/off, window, morning/night).
+2. Press **Train now** on the **ML evaluation** page (admin). Or, from `dashboard/` on the laptop:
+   `python -m ml.prepare_dataset` then `python -m ml.train_model --plot --publish`.
+3. View results on the **ML evaluation** page.
 
 Below 30 ratings / 2 sessions, training refuses and the dashboard says so. A model that doesn't beat the
 mean baseline isn't deployed. No metrics are shown that weren't actually computed.
+
+The deployed model is stored in the database (`ml_models`), so the Render copy and the laptop use the same
+model and it survives Render restarts. The laptop backend also keeps a copy in `dashboard/ml/models/`.
+
+### Second model: room forecast
+
+A separate model predicts temperature and humidity a few minutes ahead from the real sensor readings alone
+(no ratings needed). Train it with **Train forecast** on the ML evaluation page, or
+`python -m ml.forecast --horizon 5 --publish`. It is evaluated on the later 30 % of the recordings against a
+"no change" baseline and only deployed if it beats it. Each training sample needs (5 + horizon) minutes of
+continuous recording, so longer horizons need the device to run for longer stretches. The forecast is shown on
+Overview and is stored in `ml_models` with `kind = 'forecast'`, separate from the comfort model.
 
 ## Operating modes and safety
 
@@ -146,8 +155,7 @@ for 30 s, it switches fan and LED off itself.
 - `cd dashboard; .\.venv\Scripts\python -m pytest`
 - `python scripts/smoke_test.py`: ~60 end-to-end HTTP checks against a throwaway server
 - `python scripts/check_secrets.py` before every commit
-- `pip-audit` and `npm audit`: see [docs/SECURITY.md](docs/SECURITY.md)
-- Plans: [docs/TEST_PLAN.md](docs/TEST_PLAN.md), [docs/SECURITY_TEST_PLAN.md](docs/SECURITY_TEST_PLAN.md)
+- `pip-audit` (in `dashboard/`) and `npm audit` (in `dashboard/frontend/`)
 
 ## Known limitations
 
@@ -159,5 +167,3 @@ for 30 s, it switches fan and LED off itself.
 - The raindrop sensor thresholds are defaults and need calibrating for your module.
 - The comfort model only reflects the people who rated, in the rooms they rated. Small datasets give unstable metrics.
 - Single-process backend: the rate limits and live hub are in memory.
-
-More in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) and [docs/SECURITY.md](docs/SECURITY.md).

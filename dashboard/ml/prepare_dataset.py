@@ -15,11 +15,11 @@ from pathlib import Path
 import pandas as pd
 
 from .common import (
-    BASE_FEATURES, DATASET_COLUMNS, DEFAULT_DATASET, FEATURE_RANGES, GROUP, TARGET, TARGET_RANGE, TIME,
+    BASE_FEATURES, DATASET_COLUMNS, DEFAULT_DATASET, FEATURE_RANGES, GROUP, MAX_CONTEXT_AGE_S, TARGET, TARGET_RANGE,
+    TIME,
 )
 
 MAX_CSV_BYTES = 20 * 1024 * 1024
-MAX_CONTEXT_AGE_S = 120
 
 
 FEEDBACK_COLUMNS = ["created_at", "user_id", "temperature_c", "humidity_pct", "light_pct", "motion_detected",
@@ -46,6 +46,11 @@ def from_database(db_path: Path, include_simulated: bool = False) -> pd.DataFram
     return _to_dataset(pd.DataFrame([tuple(r) for r in rows], columns=FEEDBACK_COLUMNS))
 
 
+def from_connection(conn, include_simulated: bool = False) -> pd.DataFrame:
+    rows = conn.execute(_feedback_query(include_simulated), (MAX_CONTEXT_AGE_S,)).fetchall()
+    return _to_dataset(pd.DataFrame([tuple(r) for r in rows], columns=FEEDBACK_COLUMNS))
+
+
 def from_configured_database(include_simulated: bool = False) -> pd.DataFrame:
     from backend.config import load_settings
     from backend.database import open_database
@@ -53,10 +58,9 @@ def from_configured_database(include_simulated: bool = False) -> pd.DataFrame:
     db = open_database(load_settings())
     try:
         with db.session() as conn:
-            rows = conn.execute(_feedback_query(include_simulated), (MAX_CONTEXT_AGE_S,)).fetchall()
+            return from_connection(conn, include_simulated)
     finally:
         db.close()
-    return _to_dataset(pd.DataFrame([tuple(r) for r in rows], columns=FEEDBACK_COLUMNS))
 
 
 def _to_dataset(df: pd.DataFrame) -> pd.DataFrame:

@@ -7,6 +7,8 @@ import { RANGES, rangeMs, trend, useSeries, type RangeId } from '../hooks'
 import MetricChart, { METRIC_COLOR, type MetricKey } from '../components/MetricChart'
 import Sparkline from '../components/Sparkline'
 import RainWindowCard from '../components/RainWindow'
+import QuickRate from '../components/QuickRate'
+import ForecastCard from '../components/ForecastCard'
 import { freshnessOf } from '../components/status'
 import { Card, cx, EmptyState, IconBubble, Segmented, Skeleton, StatusDot, type Hue } from '../components/ui'
 import type { Advice, Reading, SensorState } from '../types'
@@ -399,6 +401,10 @@ export default function Overview() {
                   </p>
                 )}
               </Card>
+
+              <ForecastCard />
+
+              <QuickRate />
             </div>
           </div>
 

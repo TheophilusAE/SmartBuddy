@@ -97,7 +97,7 @@ constexpr float FAN_OFF_TEMP_C = 25.5f;
 constexpr float LED_ON_PCT  = 30.0f;
 constexpr float LED_OFF_PCT = 40.0f;
 
-constexpr int           MQ2_ALARM_THRESHOLD  = 1800;   // raw ADC, not ppm
+constexpr int           MQ2_ALARM_THRESHOLD  = 420;    // raw ADC, not ppm. clean-air baseline 112 on 2026-11-12
 constexpr int           MQ2_ALARM_HYSTERESIS = 100;
 constexpr unsigned long MQ2_ALARM_CONFIRM_MS = 3000;
 constexpr unsigned long MQ2_ALARM_MIN_ON_MS  = 5000;

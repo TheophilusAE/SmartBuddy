@@ -30,16 +30,18 @@ class AppContext:
     unauth_device_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(30, 60))
     command_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(30, 60))
     feedback_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(20, 60))
+    train_limiter: RateLimiter = field(default_factory=lambda: RateLimiter(3, 300))
 
     @classmethod
     def build(cls, settings: Settings) -> "AppContext":
+        db = open_database(settings)
         return cls(
             settings=settings,
-            db=open_database(settings),
+            db=db,
             hub=LiveHub(),
             gas=GasMonitor(settings.gas_warning_adc, settings.gas_clear_adc),
             automation=AutomationEngine(settings),
-            ml=MlService(settings.models_dir),
+            ml=MlService(settings.models_dir, db),
         )
 
     def get_mode(self, conn: sqlite3.Connection) -> OperatingMode:

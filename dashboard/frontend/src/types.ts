@@ -130,9 +130,40 @@ export interface MlStatus {
   algorithm: string | null
   load_error: string | null
   usable_feedback: number
+  usable_sessions: number
   min_labels: number
   min_sessions: number
   last_training: { status: string; attempted_at: string; message?: string } | null
+  forecast_available: boolean
+  forecast_version: string | null
+}
+
+export interface Forecast {
+  available: boolean
+  reason?: string
+  model_version?: string
+  horizon_min?: number
+  based_on?: string
+  now?: { temperature_c: number; humidity_pct: number }
+  forecast?: { temperature_c: number | null; humidity_pct: number | null }
+}
+
+export interface ForecastResult {
+  status: 'deployed' | 'no_improvement' | 'insufficient_data'
+  attempted_at: string
+  message?: string
+  model_version?: string
+  algorithm?: string
+  horizon_min: number
+  features: string[]
+  summary: { readings: number; hours_recorded: number; segments: number; samples: number; days: string[] }
+  split?: { method: string; train_rows: number; test_rows: number; train_until: string; test_from: string; test_to: string }
+  metrics?: Record<string, Record<string, MetricPair>>
+  best_candidate?: Record<string, string>
+  beats_baseline?: Record<string, boolean>
+  test_series?: { at: string; now: number; actual: number; predicted: number }[]
+  limitations?: string[]
+  refit_on_all_rows?: boolean
 }
 
 export interface MetricPair {

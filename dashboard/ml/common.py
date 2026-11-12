@@ -25,12 +25,14 @@ FEATURE_RANGES = {
 }
 TARGET_RANGE = (1, 5)
 
+MAX_CONTEXT_AGE_S = 120
 MIN_LABELS = 30
 MIN_GROUPS = 2
 RANDOM_FOREST_MIN_LABELS = 60
 RANDOM_SEED = 42
 
 MODEL_FILE_RE = re.compile(r"^comfort_v\d{8}-\d{6}\.joblib$")
+FORECAST_FILE_RE = re.compile(r"^forecast_v\d{8}-\d{6}\.joblib$")
 CURRENT_FILE = "current.json"
 LAST_TRAINING_FILE = "last_training.json"
 

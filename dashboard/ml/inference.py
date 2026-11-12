@@ -74,14 +74,15 @@ def load_model(models_dir: Path = MODELS_DIR) -> ComfortModel:
 
 
 class ModelCache:
-    def __init__(self, models_dir: Path = MODELS_DIR):
+    def __init__(self, models_dir: Path = MODELS_DIR, loader=None):
         self.models_dir = models_dir
+        self.loader = loader or load_model
         self._lock = threading.Lock()
         self._mtime: Optional[float] = None
         self._model: Optional[ComfortModel] = None
         self.error: Optional[str] = None
 
-    def get(self) -> Optional[ComfortModel]:
+    def get(self):
         path = self.models_dir / CURRENT_FILE
         try:
             mtime = path.stat().st_mtime
@@ -94,7 +95,7 @@ class ModelCache:
                 self.error = None
                 if mtime is not None:
                     try:
-                        self._model = load_model(self.models_dir)
+                        self._model = self.loader(self.models_dir)
                     except ModelUnavailable as exc:
                         self.error = str(exc)
                     except Exception:

@@ -1,8 +1,3 @@
-# Docs and tests stay local, not in the repo
-docs/
-dashboard/tests/
-render.yaml
-
 # Secrets and local config
 .env
 .env.*

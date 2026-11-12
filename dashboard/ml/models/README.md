@@ -7,6 +7,9 @@
 - `last_training.json` - result of the latest training attempt (also when it was refused)
 - `actual_vs_predicted_<version>.png` - optional plot (`--plot`)
 
+The backend also restores the active model from the database (`ml_models` table) into this folder, so on the
+laptop this folder doubles as a local backup of the model Render uses.
+
 **Never copy a .joblib file from anywhere else into this folder.** joblib files are pickles and can run code
 when loaded. The backend only loads a file whose hash matches `current.json`, but that only proves the file
 wasn't changed since training here.

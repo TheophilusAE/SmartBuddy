@@ -12,8 +12,6 @@ The firmware in use is **`firmware/smartbuddy_esp32/New_Code/New_Code.ino`** (v1
 ESP32 --Wi-Fi, HTTP POST--> laptop: backend (port 8000) --REST + WebSocket--> dashboard
 ```
 
-Wiring: [`docs/WIRING.md`](../docs/WIRING.md). Data format: [`docs/DEVICE_PROTOCOL.md`](../docs/DEVICE_PROTOCOL.md).
-
 ## Pins (New_Code.ino)
 
 | Part | GPIO | Notes |
@@ -175,7 +173,7 @@ ends, adjust `SERVO_MIN_US` / `SERVO_MAX_US` (500 / 2400 µs by default).
 - The window state on the dashboard is the angle the ESP32 sent. There's no sensor that confirms the window
   physically moved.
 - The OLED has a fifth page, *Rain/window*. The serial table has `Rain` and `Window` columns, and the CSV has
-  five extra columns at the end (see `docs/DEVICE_PROTOCOL.md`).
+  five extra columns at the end.
 
 ## Common errors
 
@@ -192,5 +190,3 @@ ends, adjust `SERVO_MIN_US` / `SERVO_MAX_US` (500 / 2400 µs by default).
 | ESP32 resets when the window moves | Servo powered from the ESP32. Give it its own 5 V supply (shared GND) and a 470 µF capacitor |
 | Window opens/closes at the wrong time | Calibrate the rain thresholds (see *Rain sensor and window servo*) |
 | Board won't boot with DHT22 attached | GPIO5 is a strapping pin. Check the pull-up, or move DHT to another GPIO and change `DHT_PIN` |
-
-More in [`docs/TROUBLESHOOTING.md`](../docs/TROUBLESHOOTING.md).
